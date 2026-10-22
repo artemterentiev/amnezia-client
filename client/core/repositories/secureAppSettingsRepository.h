@@ -40,6 +40,9 @@ public:
     void setRouteMode(RouteMode mode);
     bool addVpnSite(RouteMode mode, const QString &site, const QStringList &ips = {});
     void addVpnSites(RouteMode mode, const QMap<QString, QStringList> &sites);
+    // Replaces the IP list of an existing site. Does not create or rename the site.
+    // Returns false when the site is missing. An empty list is ignored and the stored IPs stay.
+    bool setVpnSiteIps(RouteMode mode, const QString &site, const QStringList &ips);
     void removeVpnSite(RouteMode mode, const QString &site);
     void removeAllVpnSites(RouteMode mode);
     QVariantMap vpnSites(RouteMode mode) const;
@@ -49,6 +52,8 @@ public:
     static QStringList siteIpList(const QVariant &value);
     bool isSitesSplitTunnelingEnabled() const;
     void setSitesSplitTunnelingEnabled(bool enabled);
+    bool isAutoDnsRefreshEnabled() const;
+    void setAutoDnsRefreshEnabled(bool enabled);
 
     AppsRouteMode appsRouteMode() const;
     void setAppsRouteMode(AppsRouteMode mode);
@@ -120,6 +125,7 @@ signals:
     void routeModeChanged(RouteMode mode);
     void appsRouteModeChanged(AppsRouteMode mode);
     void sitesSplitTunnelingEnabledChanged(bool enabled);
+    void autoDnsRefreshEnabledChanged(bool enabled);
     void appsSplitTunnelingEnabledChanged(bool enabled);
     void useAmneziaDnsChanged(bool enabled);
     void saveLogsChanged(bool enabled);

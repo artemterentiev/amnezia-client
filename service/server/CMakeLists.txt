@@ -26,6 +26,7 @@ set(HEADERS
     ${CMAKE_CURRENT_LIST_DIR}/../../ipc/ipc.h
     ${CMAKE_CURRENT_LIST_DIR}/../../ipc/ipcserver.h
     ${CMAKE_CURRENT_LIST_DIR}/../../ipc/ipcserverprocess.h
+    ${CMAKE_CURRENT_LIST_DIR}/../../ipc/splitTunnelFailureWatch.h
     ${CMAKE_CURRENT_LIST_DIR}/localserver.h
     ${CMAKE_CURRENT_LIST_DIR}/../../common/logger/logger.h
     ${CMAKE_CURRENT_LIST_DIR}/router.h
@@ -42,6 +43,7 @@ set(SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/../../client/core/utils/networkUtilities.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../../ipc/ipcserver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../../ipc/ipcserverprocess.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../../ipc/splitTunnelFailureWatch.cpp
     ${CMAKE_CURRENT_LIST_DIR}/localserver.cpp
     ${CMAKE_CURRENT_LIST_DIR}/../../common/logger/logger.cpp
     ${CMAKE_CURRENT_LIST_DIR}/main.cpp

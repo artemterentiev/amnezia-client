@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QProcess>
 #include <QTcpSocket>
 #include <QThread>
@@ -72,6 +73,21 @@ ErrorCode WireguardProtocol::stopMzImpl()
 {
     m_impl->deactivate();
     return ErrorCode::NoError;
+}
+
+bool WireguardProtocol::refreshSplitTunnelSites(const QStringList &ipv4Addresses)
+{
+    if (!m_impl)
+        return false;
+
+    QJsonArray sites;
+    for (const QString &ip : ipv4Addresses) {
+        if (!ip.isEmpty())
+            sites.append(ip);
+    }
+    m_rawConfig.insert(configKey::splitTunnelSites, sites);
+    m_impl->activate(m_rawConfig);
+    return true;
 }
 
 

@@ -21,6 +21,7 @@ public:
 
     ErrorCode start() override;
     void stop() override;
+    bool refreshSplitTunnelSites(const QStringList &ipv4Addresses) override;
 
     ErrorCode startMzImpl();
     ErrorCode stopMzImpl();

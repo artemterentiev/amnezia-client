@@ -180,6 +180,29 @@ void SecureAppSettingsRepository::addVpnSites(RouteMode mode, const QMap<QString
     emit sitesChanged(mode);
 }
 
+bool SecureAppSettingsRepository::setVpnSiteIps(RouteMode mode, const QString &site, const QStringList &ips)
+{
+    QVariantMap sites = vpnSites(mode);
+    if (!sites.contains(site))
+        return false;
+
+    QStringList cleaned;
+    for (const QString &ip : ips) {
+        if (!ip.isEmpty() && !cleaned.contains(ip))
+            cleaned.append(ip);
+    }
+    if (cleaned.isEmpty())
+        return false;
+
+    if (siteIpList(sites.value(site)) == cleaned)
+        return true;
+
+    sites.insert(site, cleaned);
+    setVpnSites(mode, sites);
+    emit sitesChanged(mode);
+    return true;
+}
+
 void SecureAppSettingsRepository::removeVpnSite(RouteMode mode, const QString &site)
 {
     QVariantMap sites = vpnSites(mode);
@@ -206,6 +229,20 @@ void SecureAppSettingsRepository::setSitesSplitTunnelingEnabled(bool enabled)
 {
     setValue("Conf/sitesSplitTunnelingEnabled", enabled);
     emit sitesSplitTunnelingEnabledChanged(enabled);
+}
+
+bool SecureAppSettingsRepository::isAutoDnsRefreshEnabled() const
+{
+    return value("Conf/autoDnsRefreshEnabled", true).toBool();
+}
+
+void SecureAppSettingsRepository::setAutoDnsRefreshEnabled(bool enabled)
+{
+    if (isAutoDnsRefreshEnabled() == enabled)
+        return;
+
+    setValue("Conf/autoDnsRefreshEnabled", enabled);
+    emit autoDnsRefreshEnabledChanged(enabled);
 }
 
 namespace {

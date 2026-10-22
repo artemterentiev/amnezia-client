@@ -12,6 +12,7 @@
 #include "ipcserverprocess.h"
 
 #include "rep_ipc_interface_source.h"
+#include "splitTunnelFailureWatch.h"
 
 class IpcServer : public IpcInterfaceSource
 {
@@ -49,6 +50,8 @@ public:
     virtual qint64 xrayCurrentToken() override;
     virtual bool startNetworkCheck(const QString& serverIpv4Gateway, const QString& deviceIpv4Address) override;
     virtual bool stopNetworkCheck() override;
+    virtual void watchSplitTunnelAddresses(const QStringList &ips) override;
+    virtual void clearSplitTunnelWatch() override;
 
 private:
     int m_localpid = 0;
@@ -67,6 +70,7 @@ private:
 
     QMap<int, ProcessDescriptor> m_processes;
     PingHelper m_pingHelper;
+    SplitTunnelFailureWatch m_splitTunnelWatch;
 };
 
 #endif // IPCSERVER_H

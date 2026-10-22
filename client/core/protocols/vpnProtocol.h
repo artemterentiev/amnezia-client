@@ -70,6 +70,10 @@ public:
     QString vpnGateway() const;
     QString vpnLocalAddress() const;
 
+    // Pushes a new site list into a running tunnel. Returns false when this
+    // protocol keeps routes in the system table instead.
+    virtual bool refreshSplitTunnelSites(const QStringList &ipv4Addresses);
+
     static VpnProtocol* factory(amnezia::DockerContainer container, const QJsonObject &configuration);
 
 signals:

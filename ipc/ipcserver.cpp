@@ -26,6 +26,8 @@
 IpcServer::IpcServer(QObject *parent) : IpcInterfaceSource(parent)
 {
     connect(&m_pingHelper, &PingHelper::connectionLose, this, &IpcServer::connectionLose);
+    connect(&m_splitTunnelWatch, &SplitTunnelFailureWatch::addressFailed,
+            this, &IpcServer::splitTunnelAddressFailed);
 }
 
 int IpcServer::createPrivilegedProcess()
@@ -239,6 +241,16 @@ bool IpcServer::stopNetworkCheck()
 
     m_pingHelper.stop();
     return true;
+}
+
+void IpcServer::watchSplitTunnelAddresses(const QStringList &ips)
+{
+    m_splitTunnelWatch.setAddresses(ips);
+}
+
+void IpcServer::clearSplitTunnelWatch()
+{
+    m_splitTunnelWatch.clear();
 }
 
 bool IpcServer::resetKillSwitchAllowedRange(QStringList ranges)

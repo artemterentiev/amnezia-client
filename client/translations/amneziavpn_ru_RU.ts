@@ -720,9 +720,29 @@ Already installed containers were found on the server. All installed containers 
         <translation>Импорт завершен</translation>
     </message>
     <message>
-        <location filename="../ui/controllers/ipSplitTunnelingUiController.cpp" line="64"/>
+        <location filename="../ui/controllers/ipSplitTunnelingUiController.cpp" line="75"/>
         <source>Export completed</source>
         <translation>Экспорт завершен</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/ipSplitTunnelingUiController.cpp" line="18"/>
+        <source>DNS updated for %1 domains</source>
+        <translation>DNS обновлён для %1 доменов</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/ipSplitTunnelingUiController.cpp" line="20"/>
+        <source>DNS updated for %1 domains, %2 failed</source>
+        <translation>DNS обновлён для %1 доменов, не удалось: %2</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/ipSplitTunnelingUiController.cpp" line="61"/>
+        <source>No domains to refresh</source>
+        <translation>Нет доменов для обновления</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/ipSplitTunnelingUiController.cpp" line="64"/>
+        <source>DNS refresh is already running</source>
+        <translation>Обновление DNS уже выполняется</translation>
     </message>
 </context>
 <context>
@@ -5322,6 +5342,22 @@ Create one from the current settings.</source>
         <location filename="../ui/qml/Pages2/PageSettingsSplitTunneling.qml" line="320"/>
         <source>Clear site list</source>
         <translation>Очистить список сайтов</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PageSettingsSplitTunneling.qml" line="234"/>
+        <location filename="../ui/qml/Pages2/PageSettingsSplitTunneling.qml" line="259"/>
+        <source>Refresh DNS</source>
+        <translation>Обновить DNS</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PageSettingsSplitTunneling.qml" line="240"/>
+        <source>Auto-refresh DNS</source>
+        <translation>Автообновление DNS</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PageSettingsSplitTunneling.qml" line="241"/>
+        <source>Resolve a domain again when its address fails</source>
+        <translation>Заново резолвить домен, если его адрес не открывается</translation>
     </message>
     <message>
         <location filename="../ui/qml/Pages2/PageSettingsSplitTunneling.qml" line="323"/>

@@ -23,6 +23,15 @@ PageType {
     property var isServerFromTelegramApi: ServersUiController.isServerFromApi(ServersUiController.defaultServerId)
     
     property bool pageEnabled
+    property bool dnsRefreshRunning: false
+
+    function refreshDns() {
+        if (root.dnsRefreshRunning || !root.pageEnabled)
+            return
+        root.dnsRefreshRunning = true
+        PageController.showBusyIndicator(true)
+        IpSplitTunnelingController.reresolveSites()
+    }
 
     Component.onCompleted: {
         if (ConnectionController.isConnected) {
@@ -45,6 +54,11 @@ PageType {
 
         function onErrorOccurred(errorMessage) {
             PageController.showErrorMessage(errorMessage)
+        }
+
+        function onDnsRefreshFinished() {
+            root.dnsRefreshRunning = false
+            PageController.showBusyIndicator(false)
         }
     }
 
@@ -83,7 +97,7 @@ PageType {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: addSitePanel.top
+        anchors.bottom: autoDnsRefreshRow.top
 
         model: SortFilterProxyModel {
             id: proxyIpSplitTunnelingModel
@@ -215,6 +229,56 @@ PageType {
         }
     }
 
+    ListItemType {
+        id: autoDnsRefreshRow
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: refreshDnsButton.top
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+
+        text: qsTr("Auto-refresh DNS")
+        subtitle: qsTr("Resolve a domain again when its address fails")
+        showSeparator: false
+
+        onClicked: {
+            autoDnsRefreshSwitch.toggle()
+            autoDnsRefreshSwitch.toggled()
+        }
+
+        SwitchType {
+            id: autoDnsRefreshSwitch
+
+            focusPolicy: Qt.NoFocus
+            checked: IpSplitTunnelingController.autoDnsRefreshEnabled
+
+            onToggled: function() {
+                if (checked !== IpSplitTunnelingController.autoDnsRefreshEnabled)
+                    IpSplitTunnelingController.autoDnsRefreshEnabled = checked
+            }
+        }
+    }
+
+    ButtonType {
+        id: refreshDnsButton
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: addSitePanel.top
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 8
+
+        enabled: root.pageEnabled && !root.dnsRefreshRunning
+        loading: root.dnsRefreshRunning
+        variant: ButtonType.Secondary
+        size: ButtonType.Medium
+        text: qsTr("Refresh DNS")
+
+        onClicked: root.refreshDns()
+    }
+
     AddSitePanel {
         id: addSitePanel
 
@@ -240,6 +304,20 @@ PageType {
 
     PopupMenuType {
         id: moreActionsMenu
+
+        PopupMenuItemType {
+            id: refreshDnsMenuButton
+
+            enabled: root.pageEnabled && !root.dnsRefreshRunning
+            text: qsTr("Refresh DNS")
+
+            onClicked: {
+                moreActionsMenu.close()
+                root.refreshDns()
+            }
+        }
+
+        PopupMenuSeparatorType {}
 
         PopupMenuItemType {
             id: addImportedSitesButton

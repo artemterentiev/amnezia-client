@@ -12,6 +12,7 @@ class IpSplitTunnelingUiController : public QObject
 
     Q_PROPERTY(int routeMode READ getRouteMode WRITE setRouteMode NOTIFY routeModeChanged)
     Q_PROPERTY(bool isSplitTunnelingEnabled READ isSplitTunnelingEnabled NOTIFY isSplitTunnelingEnabledChanged)
+    Q_PROPERTY(bool autoDnsRefreshEnabled READ isAutoDnsRefreshEnabled WRITE setAutoDnsRefreshEnabled NOTIFY autoDnsRefreshEnabledChanged)
 
 public:
     explicit IpSplitTunnelingUiController(IpSplitTunnelingController* ipSplitTunnelingController,
@@ -23,19 +24,24 @@ public slots:
     void removeSites();
     void importSites(const QString &fileName, bool replaceExisting);
     void exportSites(const QString &fileName);
+    void reresolveSites();
     void toggleSplitTunneling(bool enabled);
     void setRouteMode(int routeMode);
+    void setAutoDnsRefreshEnabled(bool enabled);
 
     int getRouteMode() const;
     bool isSplitTunnelingEnabled() const;
+    bool isAutoDnsRefreshEnabled() const;
 
     void updateModel();
 
 signals:
     void routeModeChanged();
     void isSplitTunnelingEnabledChanged();
+    void autoDnsRefreshEnabledChanged();
     void errorOccurred(const QString &errorMessage);
     void finished(const QString &message);
+    void dnsRefreshFinished();
     void saveFile(const QString &fileName, const QString &data);
 
 private:

@@ -6,6 +6,7 @@
 #include <QHostInfo>
 #include <QJsonObject>
 #include <QObject>
+#include <QSet>
 #include <QSharedPointer>
 #include <QString>
 #include <QStringList>
@@ -162,9 +163,14 @@ void VpnConnection::onConnectionStateChanged(Vpn::ConnectionState state)
                         }
                     }
                 }
-            } break;
+                    if (m_appSettingsRepository->isSitesSplitTunnelingEnabled()
+                            && m_appSettingsRepository->routeMode() == amnezia::RouteMode::VpnOnlyForwardSites) {
+                        QTimer::singleShot(1500, this, [this]() { syncSplitTunnelFailureWatch(); });
+                    }
+                } break;
             case Vpn::ConnectionState::Disconnected:
             case Vpn::ConnectionState::Error: {
+                iface->clearSplitTunnelWatch();
                 auto flushDns = iface->flushDns();
                 if (flushDns.waitForFinished() && flushDns.returnValue())
                     qDebug() << "VpnConnection::onConnectionStateChanged: Successfully flushed DNS";
@@ -197,6 +203,121 @@ void VpnConnection::onConnectionStateChanged(Vpn::ConnectionState state)
 const QString &VpnConnection::remoteAddress() const
 {
     return m_remoteAddress;
+}
+
+void VpnConnection::syncSplitTunnelFailureWatch()
+{
+#ifdef AMNEZIA_DESKTOP
+    if (m_connectionState != Vpn::ConnectionState::Connected
+            || !m_appSettingsRepository
+            || !m_appSettingsRepository->isSitesSplitTunnelingEnabled()
+            || !m_appSettingsRepository->isAutoDnsRefreshEnabled()
+            || m_appSettingsRepository->routeMode() != amnezia::RouteMode::VpnOnlyForwardSites) {
+        IpcClient::withInterface([](QSharedPointer<IpcInterfaceReplica> iface) {
+            iface->clearSplitTunnelWatch();
+        });
+        return;
+    }
+
+    QStringList ips;
+    const QVariantMap sites = m_appSettingsRepository->vpnSites(amnezia::RouteMode::VpnOnlyForwardSites);
+    for (auto it = sites.constBegin(); it != sites.constEnd(); ++it) {
+        const QString key = it.key().section('/', 0, 0);
+        if (NetworkUtilities::checkIPv4Format(key))
+            ips.append(key);
+        for (const QString &ip : SecureAppSettingsRepository::siteIpList(it.value())) {
+            const QString bare = ip.section('/', 0, 0);
+            if (NetworkUtilities::checkIPv4Format(bare))
+                ips.append(bare);
+        }
+    }
+    ips.removeDuplicates();
+    IpcClient::withInterface([ips](QSharedPointer<IpcInterfaceReplica> iface) {
+        iface->watchSplitTunnelAddresses(ips);
+    });
+#endif
+}
+
+void VpnConnection::onSplitTunnelAddressFailed(const QString &ip)
+{
+    if (m_connectionState != Vpn::ConnectionState::Connected || !m_appSettingsRepository)
+        return;
+    if (!m_appSettingsRepository->isSitesSplitTunnelingEnabled()
+            || !m_appSettingsRepository->isAutoDnsRefreshEnabled()
+            || m_appSettingsRepository->routeMode() != amnezia::RouteMode::VpnOnlyForwardSites) {
+        return;
+    }
+    emit splitTunnelEndpointFailed(ip);
+}
+
+void VpnConnection::onSiteIpsReplaced(const QString &hostname, const QStringList &previousIps, const QStringList &newIps)
+{
+    Q_UNUSED(hostname);
+#ifdef AMNEZIA_DESKTOP
+    if (m_connectionState != Vpn::ConnectionState::Connected || !m_appSettingsRepository || !m_vpnProtocol)
+        return;
+
+    QSet<QString> live;
+    const QVariantMap sites = m_appSettingsRepository->vpnSites(amnezia::RouteMode::VpnOnlyForwardSites);
+    for (auto it = sites.constBegin(); it != sites.constEnd(); ++it) {
+        const QString key = it.key().section('/', 0, 0);
+        if (NetworkUtilities::checkIPv4Format(key))
+            live.insert(key);
+        for (const QString &ip : SecureAppSettingsRepository::siteIpList(it.value())) {
+            const QString bare = ip.section('/', 0, 0);
+            if (NetworkUtilities::checkIPv4Format(bare))
+                live.insert(bare);
+        }
+    }
+
+    auto bareList = [](const QStringList &values) {
+        QStringList result;
+        for (const QString &value : values) {
+            const QString bare = value.section('/', 0, 0);
+            if (NetworkUtilities::checkIPv4Format(bare))
+                result.append(bare);
+        }
+        result.removeDuplicates();
+        return result;
+    };
+
+    const QStringList oldIps = bareList(previousIps);
+    const QStringList freshIps = bareList(newIps);
+    QStringList removed;
+    QStringList added;
+    for (const QString &ip : oldIps) {
+        if (!live.contains(ip))
+            removed.append(ip);
+    }
+    for (const QString &ip : freshIps) {
+        if (!oldIps.contains(ip))
+            added.append(ip);
+    }
+
+    QStringList allowed = live.values();
+    const QString dns1 = m_vpnConfiguration.value(configKey::dns1).toString().section('/', 0, 0);
+    const QString dns2 = m_vpnConfiguration.value(configKey::dns2).toString().section('/', 0, 0);
+    if (NetworkUtilities::checkIPv4Format(dns1) && !allowed.contains(dns1))
+        allowed.append(dns1);
+    if (NetworkUtilities::checkIPv4Format(dns2) && !allowed.contains(dns2))
+        allowed.append(dns2);
+
+    if (!m_vpnProtocol->refreshSplitTunnelSites(allowed)) {
+        const QString gateway = m_vpnProtocol->vpnGateway();
+        if (NetworkUtilities::checkIPv4Format(gateway) && (!removed.isEmpty() || !added.isEmpty())) {
+            IpcClient::withInterface([gateway, removed, added](QSharedPointer<IpcInterfaceReplica> iface) {
+                if (!removed.isEmpty())
+                    iface->routeDeleteList(gateway, removed);
+                if (!added.isEmpty())
+                    iface->routeAddList(gateway, added);
+            });
+        }
+    }
+    syncSplitTunnelFailureWatch();
+#else
+    Q_UNUSED(previousIps);
+    Q_UNUSED(newIps);
+#endif
 }
 
 void VpnConnection::setRepositories(SecureServersRepository* serversRepository, SecureAppSettingsRepository* appSettingsRepository)
@@ -263,6 +384,8 @@ void VpnConnection::addSitesRoutes(const QString &gw, amnezia::RouteMode mode)
             if (!newIps.isEmpty()) {
                 m_appSettingsRepository->addVpnSite(mode, site, newIps);
                 *needFlush = true;
+                if (mode == amnezia::RouteMode::VpnOnlyForwardSites)
+                    syncSplitTunnelFailureWatch();
             }
 
             if (--(*remainingLookups) > 0)
@@ -387,6 +510,8 @@ void VpnConnection::createProtocolConnections()
     IpcClient::withInterface([this](QSharedPointer<IpcInterfaceReplica> rep) {
         connect(rep.data(), &IpcInterfaceReplica::networkChanged, this, &VpnConnection::reconnectToVpn, Qt::QueuedConnection);
         connect(rep.data(), &IpcInterfaceReplica::wakeup, this, &VpnConnection::reconnectToVpn, Qt::QueuedConnection);
+        connect(rep.data(), &IpcInterfaceReplica::splitTunnelAddressFailed, this,
+                &VpnConnection::onSplitTunnelAddressFailed, static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::UniqueConnection));
     });
 #endif
 }

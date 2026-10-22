@@ -47,7 +47,11 @@ class IpcInterface
     SLOT( bool startNetworkCheck(const QString& serverIpv4Gateway, const QString& deviceIpv4Address) );
     SLOT( bool stopNetworkCheck() );
 
+    SLOT( void watchSplitTunnelAddresses(const QStringList &ips) );
+    SLOT( void clearSplitTunnelWatch() );
+
     SIGNAL( connectionLose() );
+    SIGNAL( splitTunnelAddressFailed(QString ip) );
     SIGNAL( wakeup() );
     SIGNAL( networkChanged() );
 };

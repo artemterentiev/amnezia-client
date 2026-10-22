@@ -2,6 +2,13 @@
 #include "core/utils/networkUtilities.h"
 #include <QJsonObject>
 #include <QDebug>
+#include <QDateTime>
+#include <QHostAddress>
+#include <QSharedPointer>
+
+namespace {
+constexpr int kDnsFailureRefreshCooldownMs = 60000;
+}
 
 IpSplitTunnelingController::IpSplitTunnelingController(SecureAppSettingsRepository* appSettingsRepository, QObject* parent)
     : QObject(parent),
@@ -124,6 +131,16 @@ void IpSplitTunnelingController::toggleSplitTunneling(bool enabled)
     m_appSettingsRepository->setSitesSplitTunnelingEnabled(enabled);
 }
 
+void IpSplitTunnelingController::setAutoDnsRefreshEnabled(bool enabled)
+{
+    m_appSettingsRepository->setAutoDnsRefreshEnabled(enabled);
+}
+
+bool IpSplitTunnelingController::isAutoDnsRefreshEnabled() const
+{
+    return m_appSettingsRepository->isAutoDnsRefreshEnabled();
+}
+
 RouteMode IpSplitTunnelingController::getRouteMode() const
 {
     return m_currentRouteMode;
@@ -213,6 +230,175 @@ void IpSplitTunnelingController::processSiteAfterResolve(const QString &hostname
 void IpSplitTunnelingController::processSite(const QString &hostname, const QStringList &ips)
 {
     addSiteInternal(hostname, ips);
+}
+
+bool IpSplitTunnelingController::isResolvableHostname(const QString &hostname)
+{
+    if (hostname.isEmpty())
+        return false;
+    if (NetworkUtilities::checkIpSubnetFormat(hostname))
+        return false;
+
+    const QHostAddress address(hostname);
+    return address.protocol() != QAbstractSocket::IPv4Protocol
+            && address.protocol() != QAbstractSocket::IPv6Protocol;
+}
+
+bool IpSplitTunnelingController::replaceSiteIps(const QString &hostname, const QStringList &ips)
+{
+    bool found = false;
+    for (int i = 0; i < m_sites.size(); ++i) {
+        if (m_sites[i].first == hostname) {
+            const QStringList previous = m_sites[i].second;
+            m_sites[i].second = ips;
+            if (!m_appSettingsRepository->setVpnSiteIps(m_currentRouteMode, hostname, ips)) {
+                m_sites[i].second = previous;
+                return false;
+            }
+            found = true;
+            break;
+        }
+    }
+    return found;
+}
+
+int IpSplitTunnelingController::reresolveSites()
+{
+    if (m_dnsRefreshRunning)
+        return -1;
+
+    QStringList domains;
+    for (const auto &site : m_sites) {
+        if (isResolvableHostname(site.first))
+            domains.append(site.first);
+    }
+    if (domains.isEmpty())
+        return 0;
+
+    struct Batch {
+        int generation = 0;
+        int pending = 0;
+        int updated = 0;
+        int failed = 0;
+        bool acceptResults = false;
+        bool finished = false;
+    };
+
+    m_dnsRefreshRunning = true;
+    const auto batch = QSharedPointer<Batch>::create();
+    batch->generation = ++m_dnsRefreshGeneration;
+    batch->pending = domains.size();
+
+    for (const QString &domain : domains) {
+        QHostInfo::lookupHost(domain, this, [this, batch, domain](const QHostInfo &hostInfo) {
+            if (batch->finished || batch->generation != m_dnsRefreshGeneration)
+                return;
+
+            QStringList resolved;
+            if (hostInfo.error() == QHostInfo::NoError) {
+                for (const QHostAddress &addr : hostInfo.addresses()) {
+                    if (addr.protocol() == QAbstractSocket::IPv4Protocol)
+                        resolved.append(addr.toString());
+                }
+                resolved.removeDuplicates();
+            }
+
+            if (resolved.isEmpty()) {
+                ++batch->failed;
+                qWarning() << "[SplitTunneling] DNS refresh failed for" << domain
+                           << hostInfo.errorString() << "- kept the stored addresses";
+            } else if (replaceSiteIps(domain, resolved)) {
+                ++batch->updated;
+                qDebug() << "[SplitTunneling] DNS refresh" << domain << "->" << resolved;
+            } else {
+                ++batch->failed;
+                qWarning() << "[SplitTunneling] DNS refresh skipped missing site" << domain;
+            }
+
+            --batch->pending;
+            if (!batch->acceptResults || batch->pending > 0)
+                return;
+
+            batch->finished = true;
+            m_dnsRefreshRunning = false;
+            emit sitesReresolveFinished(batch->updated, batch->failed);
+        });
+    }
+
+    batch->acceptResults = true;
+    if (!batch->finished && batch->pending == 0) {
+        batch->finished = true;
+        m_dnsRefreshRunning = false;
+        emit sitesReresolveFinished(batch->updated, batch->failed);
+    }
+
+    return domains.size();
+}
+
+void IpSplitTunnelingController::reresolveSitesForAddress(const QString &ip)
+{
+    if (!m_appSettingsRepository->isAutoDnsRefreshEnabled())
+        return;
+    if (m_currentRouteMode != RouteMode::VpnOnlyForwardSites)
+        return;
+
+    const QString failedIp = ip.section('/', 0, 0).trimmed();
+    if (failedIp.isEmpty())
+        return;
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    for (const auto &site : m_sites) {
+        bool listsFailedIp = false;
+        for (const QString &candidate : site.second) {
+            if (candidate.section('/', 0, 0) == failedIp) {
+                listsFailedIp = true;
+                break;
+            }
+        }
+        if (!isResolvableHostname(site.first) || !listsFailedIp)
+            continue;
+        if (m_domainRefreshInFlight.contains(site.first))
+            continue;
+        if (m_domainRefreshNotBeforeMs.value(site.first) > now)
+            continue;
+
+        const QString domain = site.first;
+        const QStringList previousIps = site.second;
+        m_domainRefreshInFlight.insert(domain);
+        m_domainRefreshNotBeforeMs.insert(domain, now + kDnsFailureRefreshCooldownMs);
+
+        QHostInfo::lookupHost(domain, this, [this, domain, previousIps](const QHostInfo &hostInfo) {
+            m_domainRefreshInFlight.remove(domain);
+
+            QStringList resolved;
+            if (hostInfo.error() == QHostInfo::NoError) {
+                for (const QHostAddress &addr : hostInfo.addresses()) {
+                    if (addr.protocol() == QAbstractSocket::IPv4Protocol)
+                        resolved.append(addr.toString());
+                }
+                resolved.removeDuplicates();
+            }
+
+            if (resolved.isEmpty()) {
+                qWarning() << "[SplitTunneling] DNS refresh failed for" << domain
+                           << hostInfo.errorString() << "- kept the stored addresses";
+                return;
+            }
+
+            QStringList previousSorted = previousIps;
+            QStringList resolvedSorted = resolved;
+            previousSorted.sort();
+            resolvedSorted.sort();
+            if (previousSorted == resolvedSorted)
+                return;
+
+            if (replaceSiteIps(domain, resolved)) {
+                qInfo() << "[SplitTunneling] replaced addresses for" << domain
+                        << previousIps << "->" << resolved;
+                emit siteIpsReplaced(domain, previousIps, resolved);
+            }
+        });
+    }
 }
 
 bool IpSplitTunnelingController::importSitesFromJson(const QByteArray& jsonData, bool replaceExisting, QString &errorMessage)

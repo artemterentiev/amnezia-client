@@ -350,6 +350,17 @@ void CoreSignalHandlers::initSitesModelUpdateHandler()
     connect(m_coreController->m_appSettingsRepository, &SecureAppSettingsRepository::sitesChanged, m_coreController->m_ipSplitTunnelingUiController, &IpSplitTunnelingUiController::updateModel);
     connect(m_coreController->m_appSettingsRepository, &SecureAppSettingsRepository::sitesSplitTunnelingEnabledChanged, m_coreController->m_ipSplitTunnelingUiController, &IpSplitTunnelingUiController::updateModel);
     connect(m_coreController->m_appSettingsRepository, &SecureAppSettingsRepository::routeModeChanged, m_coreController->m_ipSplitTunnelingUiController, &IpSplitTunnelingUiController::updateModel);
+
+    if (m_coreController->m_vpnConnection) {
+        connect(m_coreController->m_vpnConnection.get(), &VpnConnection::splitTunnelEndpointFailed,
+                m_coreController->m_ipSplitTunnelingController, &IpSplitTunnelingController::reresolveSitesForAddress);
+        connect(m_coreController->m_ipSplitTunnelingController, &IpSplitTunnelingController::siteIpsReplaced,
+                m_coreController->m_vpnConnection.get(), &VpnConnection::onSiteIpsReplaced);
+        connect(m_coreController->m_appSettingsRepository, &SecureAppSettingsRepository::autoDnsRefreshEnabledChanged,
+                m_coreController->m_vpnConnection.get(), &VpnConnection::syncSplitTunnelFailureWatch);
+    }
+    connect(m_coreController->m_appSettingsRepository, &SecureAppSettingsRepository::autoDnsRefreshEnabledChanged,
+            m_coreController->m_ipSplitTunnelingUiController, &IpSplitTunnelingUiController::autoDnsRefreshEnabledChanged);
 }
 
 void CoreSignalHandlers::initAllowedDnsModelUpdateHandler()

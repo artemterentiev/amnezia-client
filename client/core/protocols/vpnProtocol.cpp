@@ -121,6 +121,12 @@ QString VpnProtocol::vpnLocalAddress() const
     return m_vpnLocalAddress;
 }
 
+bool VpnProtocol::refreshSplitTunnelSites(const QStringList &ipv4Addresses)
+{
+    Q_UNUSED(ipv4Addresses);
+    return false;
+}
+
 VpnProtocol *VpnProtocol::factory(DockerContainer container, const QJsonObject &configuration)
 {
     switch (container) {

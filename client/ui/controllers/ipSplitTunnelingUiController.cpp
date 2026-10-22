@@ -14,6 +14,14 @@ IpSplitTunnelingUiController::IpSplitTunnelingUiController(IpSplitTunnelingContr
       m_ipSplitTunnelingModel(ipSplitTunnelingModel)
 {
     m_ipSplitTunnelingModel->updateModel(m_ipSplitTunnelingController->getCurrentSites());
+    connect(m_ipSplitTunnelingController, &IpSplitTunnelingController::sitesReresolveFinished,
+            this, [this](int updatedCount, int failedCount) {
+                if (failedCount == 0)
+                    emit finished(tr("DNS updated for %1 domains").arg(updatedCount));
+                else
+                    emit finished(tr("DNS updated for %1 domains, %2 failed").arg(updatedCount).arg(failedCount));
+                emit dnsRefreshFinished();
+            });
 }
 
 void IpSplitTunnelingUiController::addSite(QString hostname)
@@ -54,6 +62,17 @@ void IpSplitTunnelingUiController::importSites(const QString &fileName, bool rep
     }
 }
 
+void IpSplitTunnelingUiController::reresolveSites()
+{
+    const int started = m_ipSplitTunnelingController->reresolveSites();
+    if (started == 0) {
+        emit finished(tr("No domains to refresh"));
+        emit dnsRefreshFinished();
+    } else if (started < 0) {
+        emit errorOccurred(tr("DNS refresh is already running"));
+    }
+}
+
 void IpSplitTunnelingUiController::exportSites(const QString &fileName)
 {
     QByteArray jsonData = m_ipSplitTunnelingController->exportSitesToJson();
@@ -68,6 +87,17 @@ void IpSplitTunnelingUiController::toggleSplitTunneling(bool enabled)
 {
     m_ipSplitTunnelingController->toggleSplitTunneling(enabled);
     emit isSplitTunnelingEnabledChanged();
+}
+
+void IpSplitTunnelingUiController::setAutoDnsRefreshEnabled(bool enabled)
+{
+    m_ipSplitTunnelingController->setAutoDnsRefreshEnabled(enabled);
+    emit autoDnsRefreshEnabledChanged();
+}
+
+bool IpSplitTunnelingUiController::isAutoDnsRefreshEnabled() const
+{
+    return m_ipSplitTunnelingController->isAutoDnsRefreshEnabled();
 }
 
 void IpSplitTunnelingUiController::setRouteMode(int routeMode)

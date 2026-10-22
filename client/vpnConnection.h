@@ -57,11 +57,15 @@ public slots:
     void disconnectSlots();
 
     void setConnectionState(Vpn::ConnectionState state);
+    void onSplitTunnelAddressFailed(const QString &ip);
+    void onSiteIpsReplaced(const QString &hostname, const QStringList &previousIps, const QStringList &newIps);
+    void syncSplitTunnelFailureWatch();
 
 signals:
     void bytesChanged(quint64 receivedBytes, quint64 sentBytes);
     void connectionStateChanged(Vpn::ConnectionState state);
     void vpnProtocolError(amnezia::ErrorCode error);
+    void splitTunnelEndpointFailed(const QString &ip);
 
     void serviceIsNotReady();
 
