@@ -168,15 +168,15 @@ void SplitTunnelFailureWatch::poll()
         }
 
         if (!conn.haveBaseline) {
-            conn.retransBaseline = rod.RetransSegs;
+            conn.retransBaseline = rod.PktsRetrans;
             conn.timeoutBaseline = rod.Timeouts;
             conn.haveBaseline = true;
             continue;
         }
 
         const bool stalled = rod.Timeouts > conn.timeoutBaseline
-                || (rod.RetransSegs >= conn.retransBaseline
-                    && rod.RetransSegs - conn.retransBaseline >= kRetransmitThreshold);
+                || (rod.PktsRetrans >= conn.retransBaseline
+                    && rod.PktsRetrans - conn.retransBaseline >= kRetransmitThreshold);
         if (stalled) {
             conn.reported = true;
             report(remote);
